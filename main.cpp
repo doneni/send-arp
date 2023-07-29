@@ -60,11 +60,12 @@ bool getMyInfo(const char* dev, Mac& my_mac, Ip& my_ip) {
     return true;
 }
 
-int sendArpPacket(int method, pcap_t* handle, char* eth_smac, char* eth_dmac, char* arp_smac, char* arp_sip, char* arp_tmac, char* arp_tip)
+int sendArpPacket(int method, pcap_t* handle, const Mac& eth_smac, const char* eth_dmac,
+                  const Mac& arp_smac, const Ip& arp_sip, const Mac& arp_tmac, const Ip& arp_tip)
 {
     EthArpPacket packet;
 
-    packet.eth_.smac_ = Mac(eth_smac);
+    packet.eth_.smac_ = eth_smac;
     packet.eth_.dmac_ = Mac(eth_dmac);
     packet.eth_.type_ = htons(EthHdr::Arp);
 
@@ -77,10 +78,10 @@ int sendArpPacket(int method, pcap_t* handle, char* eth_smac, char* eth_dmac, ch
     } else if (method == 1) {
         packet.arp_.op_ = htons(ArpHdr::Reply);
     }
-    packet.arp_.smac_ = Mac(arp_smac);
-    packet.arp_.sip_ = htonl(Ip(arp_sip));
-    packet.arp_.tmac_ = Mac(arp_tmac);
-    packet.arp_.tip_ = htonl(Ip(arp_tip));
+    packet.arp_.smac_ = arp_smac;
+    packet.arp_.sip_ = htonl(arp_sip);
+    packet.arp_.tmac_ = arp_tmac;
+    packet.arp_.tip_ = htonl(arp_tip);
 
     int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
     if (res != 0) {
@@ -103,8 +104,9 @@ void receiveArpReply(pcap_t* handle, const Mac& my_mac, const Ip& target_ip, Mac
             if (arp_packet->eth_.type() == htons(EthHdr::Arp) &&
                 arp_packet->arp_.hrd() == ArpHdr::ETHER &&
                 arp_packet->arp_.pro() == EthHdr::Ip4 &&
-                arp_packet->arp_.op() == htons(ArpHdr::Reply) &&
-                arp_packet->arp_.sip() == htonl(target_ip)) {
+                arp_packet->arp_.op() == htons(ArpHdr::Reply)
+//              && arp_packet->arp_.sip() == htonl(target_ip
+		) {
                 sender_mac = arp_packet->arp_.smac(); // sender (sip) MAC address
                 break;
             }
@@ -152,7 +154,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Send ARP Request
-        sendArpPacket(0, handle, my_mac, "ff:ff:ff:ff:ff:ff", my_mac, my_ip, "00:00:00:00:00:00", sender_ip);
+        sendArpPacket(0, handle, my_mac, "ff:ff:ff:ff:ff:ff", my_mac, my_ip, Mac("00:00:00:00:00:00"), sender_ip);
 
         // Receive ARP Reply
         Mac sender_mac;
