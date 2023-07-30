@@ -60,64 +60,37 @@ bool getMyInfo(const char* dev, Mac& my_mac, Ip& my_ip) {
     return true;
 }
 
-int sendArpPacket(int method, pcap_t* handle, const Mac& eth_smac, const char* eth_dmac,
-                  const Mac& arp_smac, const Ip& arp_sip, const Mac& arp_tmac, const Ip& arp_tip)
+bool sendArp(pcap_t* handle, char* op, Mac eth_dmac, Mac eth_smac, Mac arp_smac, Mac arp_tmac, Ip arp_sip, Ip arp_tip)
 {
-    EthArpPacket packet;
+	EthArpPacket packet;
+	
+	packet.eth_.dmac_ = eth_dmac;
+	packet.eth_.smac_ = eth_smac;
+	packet.eth_.type_ = htons(EthHdr::Arp);
 
-    packet.eth_.smac_ = eth_smac;
-    packet.eth_.dmac_ = Mac(eth_dmac);
-    packet.eth_.type_ = htons(EthHdr::Arp);
 
-    packet.arp_.hrd_ = htons(ArpHdr::ETHER);
-    packet.arp_.pro_ = htons(EthHdr::Ip4);
-    packet.arp_.hln_ = Mac::SIZE;
-    packet.arp_.pln_ = Ip::SIZE;
-    if (method == 0) {
-        packet.arp_.op_ = htons(ArpHdr::Request);
-    } else if (method == 1) {
-        packet.arp_.op_ = htons(ArpHdr::Reply);
-    }
-    packet.arp_.smac_ = arp_smac;
-    packet.arp_.sip_ = htonl(arp_sip);
-    packet.arp_.tmac_ = arp_tmac;
-    packet.arp_.tip_ = htonl(arp_tip);
-
-    int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
-    if (res != 0) {
-        fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
-    }
-
-    return res;
-}
-
-void receiveArpReply(pcap_t* handle, const Mac& my_mac, const Ip& target_ip, Mac& sender_mac) {
-    struct pcap_pkthdr* header;
-    const u_char* packet;
-    int res;
-
-    // Receive ARP reply packets until we find the one from the target IP
-    while (true) {
-        res = pcap_next_ex(handle, &header, &packet);
-        if (res == 1 && header->caplen >= sizeof(EthHdr) + sizeof(ArpHdr)) {
-            EthArpPacket* arp_packet = reinterpret_cast<EthArpPacket*>(const_cast<u_char*>(packet));
-            if (arp_packet->eth_.type() == htons(EthHdr::Arp) &&
-                arp_packet->arp_.hrd() == ArpHdr::ETHER &&
-                arp_packet->arp_.pro() == EthHdr::Ip4 &&
-                arp_packet->arp_.op() == htons(ArpHdr::Reply)
-//              && arp_packet->arp_.sip() == htonl(target_ip
-		) {
-                sender_mac = arp_packet->arp_.smac(); // sender (sip) MAC address
-                break;
-            }
-        } else if (res == 0) {
-            // Timeout (optional handling, you can add break; here to stop waiting)
-        } else {
-            fprintf(stderr, "Error reading packet: %s\n", pcap_geterr(handle));
-            break;
-        }
-    }
-}
+	packet.arp_.pro_ = htons(EthHdr::Ip4);
+	packet.arp_.hln_ = Mac::SIZE;
+	packet.arp_.pln_ = Ip::SIZE;
+	if (op == "request")
+		packet.arp_.op_ = htons(ArpHdr::Request);
+	else if (op == "reply")
+		packet.arp_.op_ = htons(ArpHdr::Reply);
+	else
+		printf("request or reply?\n");
+	packet.arp_.smac_ = arp_smac;
+	packet.arp_.tmac_ = arp_tmac;
+	packet.arp_.sip_ = htonl(arp_sip);
+	packet.arp_.tip_ = htonl(arp_tip);
+	
+	printf("sending arp target:  %s\n", std::string(arp_tip).c_str());
+	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
+	if (res != 0) {
+		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle))    ;
+		return false;
+	}
+	return true;
+}	
 
 int main(int argc, char* argv[]) {
     // Checking the arguments
@@ -139,32 +112,49 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    for (int i = 1; i <= iter; i++) {
+	// Open pcap
+	char* dev = argv[1];
+	char errbuf[PCAP_ERRBUF_SIZE];
+	pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1, errbuf);
+	if (handle == nullptr) {
+		fprintf(stderr, "couldn't open device %s(%s)\n", dev, errbuf);
+		return -1;
+	}
+
+	for (int i = 1; i <= iter; i++)
+	{
+		// Handling argument
         Ip sender_ip = Ip(argv[i * 2]);
         Ip target_ip = Ip(argv[i * 2 + 1]);
-        printf("sender ip: %s\n", std::string(sender_ip).c_str());
+        printf("======================\n");
+		printf("sender ip: %s\n", std::string(sender_ip).c_str());
         printf("target ip: %s\n", std::string(target_ip).c_str());
 
-        // Open the pcap handle
-        char errbuf[PCAP_ERRBUF_SIZE];
-        pcap_t* handle = pcap_open_live(argv[1], BUFSIZ, 1, 1000, errbuf);
-        if (handle == nullptr) {
-            fprintf(stderr, "couldn't open device %s(%s)\n", argv[1], errbuf);
-            continue;
-        }
+		// Send normal arp packet to get sender mac addr
+		while(true)
+		{
+			sendArp(handle, "request", Mac("ff:ff:ff:ff:ff:ff"), my_mac, my_mac, Mac("00:00:00:00:00:00"), my_ip, sender_ip);		
+			// and parse...
+			struct pcap_pkthdr* header;
+			EthArpPacket reqPacket, resPacket;
+			const u_char* packet_data;
+			int res = pcap_next_ex(pcap, &header, &packet_data);
+			if (res == 0) continue;
+			if (res == PCAP_ERROR || res == PCAP_ERROR_BREAK)
+			{
+				printf("pcap_next_ex return %d(%s)\n", res, pcap_geterr(pcap));
+				break;
+			}
+			
+			if (header->caplen < sizeof(EthArpPacket))
+				continue;
 
-        // Send ARP Request
-        sendArpPacket(0, handle, my_mac, "ff:ff:ff:ff:ff:ff", my_mac, my_ip, Mac("00:00:00:00:00:00"), sender_ip);
+			// [todo] memory copy overhead -> 'parsing' w/index
+		
+			
+	}
 
-        // Receive ARP Reply
-        Mac sender_mac;
-        receiveArpReply(handle, my_mac, target_ip, sender_mac);
-        printf("Received ARP Reply\n");
-        printf("Sender MAC address: %s\n", std::string(sender_mac).c_str());
-
-        pcap_close(handle);
-    }
-
+	pcap_close(handle);
     return 0;
 }
 
