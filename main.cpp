@@ -163,7 +163,7 @@ int main(int argc, char* argv[])
 				continue;
 		}
 		
-		// Send arp spoofing
+		// Send arp spoofing...
 		sendArp(handle, "reply", sender_mac, my_mac, my_mac, sender_mac, target_ip, sender_ip);
 	}
 	pcap_close(handle);
