@@ -111,7 +111,6 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "cant get host info.\n");
         return -1;
     }
-
 	// Open pcap
 	char* dev = argv[1];
 	char errbuf[PCAP_ERRBUF_SIZE];
@@ -124,11 +123,11 @@ int main(int argc, char* argv[]) {
 	for (int i = 1; i <= iter; i++)
 	{
 		// Handling argument
-        Ip sender_ip = Ip(argv[i * 2]);
-        Ip target_ip = Ip(argv[i * 2 + 1]);
-        printf("======================\n");
+	        Ip sender_ip = Ip(argv[i * 2]);
+	        Ip target_ip = Ip(argv[i * 2 + 1]);
+	        printf("======================\n");
 		printf("sender ip: %s\n", std::string(sender_ip).c_str());
-        printf("target ip: %s\n", std::string(target_ip).c_str());
+	        printf("target ip: %s\n", std::string(target_ip).c_str());
 
 		// Send normal arp packet to get sender mac addr
 		while(true)
@@ -153,7 +152,6 @@ int main(int argc, char* argv[]) {
 		
 			
 	}
-
 	pcap_close(handle);
     return 0;
 }
