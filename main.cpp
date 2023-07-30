@@ -162,7 +162,10 @@ int main(int argc, char* argv[])
 			else
 				continue;
 		}
-    pcap_close(handle);
-    return 0;
+		
+		// Send arp spoofing
+		sendArp(handle, "reply", sender_mac, my_mac, my_mac, sender_mac, target_ip, sender_ip);
 	}
+	pcap_close(handle);
+    return 0;
 }
