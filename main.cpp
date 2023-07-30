@@ -68,7 +68,6 @@ EthArpPacket sendArp(pcap_t* handle, char* op, Mac eth_dmac, Mac eth_smac, Mac a
 	packet.eth_.smac_ = eth_smac;
 	packet.eth_.type_ = htons(EthHdr::Arp);
 
-
 	packet.arp_.pro_ = htons(EthHdr::Ip4);
 	packet.arp_.hln_ = Mac::SIZE;
 	packet.arp_.pln_ = Ip::SIZE;
@@ -92,7 +91,8 @@ EthArpPacket sendArp(pcap_t* handle, char* op, Mac eth_dmac, Mac eth_smac, Mac a
 	return packet;
 }	
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     // Checking the arguments
     if (argc < 4 || (argc % 2 != 0)) {
         usage();
@@ -111,24 +111,25 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "cant get host info.\n");
         return -1;
     }
-	// Open pcap
-	char* dev = argv[1];
-	char errbuf[PCAP_ERRBUF_SIZE];
-	pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
-	if (handle == nullptr) {
-		fprintf(stderr, "couldn't open device %s(%s)\n", dev, errbuf);
-		return -1;
-	}
+    
+    // Open pcap
+    char* dev = argv[1];
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
+    if (handle == nullptr) {
+	fprintf(stderr, "couldn't open device %s(%s)\n", dev, errbuf);
+	return -1;
+    }
 
 	for (int i = 1; i <= iter; i++)
 	{
 		// Handling argument
-	        Ip sender_ip = Ip(argv[i * 2]);
-	        Ip target_ip = Ip(argv[i * 2 + 1]);
-			Mac sender_mac;
-			printf("======================\n");
+        Ip sender_ip = Ip(argv[i * 2]);
+        Ip target_ip = Ip(argv[i * 2 + 1]);
+		Mac sender_mac;
+		printf("======================\n");
 		printf("sender ip: %s\n", std::string(sender_ip).c_str());
-	        printf("target ip: %s\n", std::string(target_ip).c_str());
+        printf("target ip: %s\n", std::string(target_ip).c_str());
 
 		// Send normal arp packet to get sender mac addr
 		while(true)
@@ -160,8 +161,8 @@ int main(int argc, char* argv[]) {
 			}
 			else
 				continue;
-	}
-	pcap_close(handle);
+		}
+    pcap_close(handle);
     return 0;
-}
+	}
 }
